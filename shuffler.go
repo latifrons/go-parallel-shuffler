@@ -3,14 +3,11 @@ package parallelshuffler
 import (
 	pq "github.com/emirpasic/gods/queues/priorityqueue"
 	"sync"
-	"time"
 )
 
 type ShufflerConfig struct {
 	MaxSize          uint64
 	ResultBufferSize uint64
-	AllowSkip        bool
-	SkipTimeout      time.Duration
 }
 
 type TaskContext struct {
@@ -34,7 +31,7 @@ func byPriority(a, b interface{}) int {
 }
 
 type Shuffler struct {
-	LastSequence  uint64
+	lastSequence  uint64
 	config        ShufflerConfig
 	resultChan    chan TaskContext
 	priorityQueue *pq.Queue
@@ -47,11 +44,20 @@ func NewShuffler(config ShufflerConfig) *Shuffler {
 	}
 	s.priorityQueue = pq.NewWith(byPriority)
 	s.resultChan = make(chan TaskContext, config.ResultBufferSize)
+	s.lastSequence = 0
 	return s
 }
 
 func (s *Shuffler) ResultChan() <-chan TaskContext {
 	return s.resultChan
+}
+
+func (s *Shuffler) LastSequence() uint64 {
+	return s.lastSequence
+}
+
+func (s *Shuffler) SetLastSequence(seq uint64) {
+	s.lastSequence = seq
 }
 
 func (s *Shuffler) EnqueueTask(id uint64, obj interface{}) {
@@ -67,12 +73,12 @@ func (s *Shuffler) EnqueueTask(id uint64, obj interface{}) {
 			break
 		}
 		v := top.(*TaskContext)
-		//fmt.Println("Top", v.Id, s.LastSequence)
-		if v.Id == s.LastSequence+1 {
+		//fmt.Println("Top", v.Id, s.lastSequence)
+		if v.Id == s.lastSequence+1 {
 			s.resultChan <- *v
 			s.priorityQueue.Dequeue()
 			//fmt.Println("SortedTask", v.Id)
-			s.LastSequence++
+			s.lastSequence++
 		} else {
 			break
 		}
